@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RandomHub</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>RandomHub</h1>
+            <button id="themeToggle">🌓</button>
+        </header>
+
+        <!-- Main Interaction -->
+        <div class="wheel-container">
+            <div class="wheel" id="wheel"></div>
+            <button class="spin-btn" onclick="spinWheel()">SPIN</button>
+        </div>
+
+        <!-- Dynamic Content Display -->
+        <div class="content-card" id="contentCard">
+            <p id="contentText">Click SPIN to see something random!</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
