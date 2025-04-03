@@ -1,0 +1,72 @@
+/* Base Styles */
+body {
+    margin: 0;
+    background: #1a1a1a;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    transition: background 0.3s;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Dark/Light Theme Toggle */
+body.light-mode {
+    background: #f0f0f0;
+    color: #333;
+}
+
+/* Wheel Design */
+.wheel-container {
+    text-align: center;
+    margin: 40px 0;
+}
+
+.wheel {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+    transition: transform 2s ease-out;
+    box-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+}
+
+.spin-btn {
+    padding: 12px 30px;
+    background: #4ecdc4;
+    border: none;
+    border-radius: 25px;
+    color: white;
+    cursor: pointer;
+    font-size: 1.1em;
+    transition: transform 0.2s;
+}
+
+.spin-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Content Card */
+.content-card {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    margin: 20px;
+    min-height: 100px;
+    backdrop-filter: blur(10px);
+    animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(1440deg); }
+}
