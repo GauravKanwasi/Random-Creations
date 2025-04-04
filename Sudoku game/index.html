@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sudoku Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Sudoku Game</h1>
+    <div class="game-container">
+        <div class="difficulty">
+            <button id="easy" class="active">Easy</button>
+            <button id="medium">Medium</button>
+            <button id="hard">Hard</button>
+        </div>
+        <div class="controls">
+            <button id="new-game">New Game</button>
+            <button id="solve">Solve</button>
+            <button id="hint">Hint</button>
+            <button id="check">Check</button>
+        </div>
+        <div class="timer">Time: 00:00</div>
+        <div class="sudoku-grid" id="grid"></div>
+        <div class="number-pad">
+            <button class="number-btn">1</button>
+            <button class="number-btn">2</button>
+            <button class="number-btn">3</button>
+            <button class="number-btn">4</button>
+            <button class="number-btn">5</button>
+            <button class="number-btn">6</button>
+            <button class="number-btn">7</button>
+            <button class="number-btn">8</button>
+            <button class="number-btn">9</button>
+            <button class="number-btn clear">Clear</button>
+        </div>
+        <div class="status" id="status">Select a difficulty and click "New Game" to start</div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
