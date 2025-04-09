@@ -1,118 +1,93 @@
-import pygame
+import curses
 import random
+import time
 
-# Initialize Pygame
-pygame.init()
+def main(stdscr):
+    # Set up initial game state
+    curses.curs_set(0)
+    stdscr.nodelay(1)
+    stdscr.timeout(100)
 
-# Screen dimensions
-SCREEN_WIDTH = 640
-SCREEN_HEIGHT = 480
+    # Initialize colors
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
 
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GREEN = (0, 255, 0)
-RED = (255, 0, 0)
+    # Get screen height and width
+    sh, sw = stdscr.getmaxyx()
+    
+    # Create initial snake position (middle of screen)
+    snake_y = sh//2
+    snake_x = sw//4
+    snake = [(snake_y, snake_x)]
+    
+    # Create initial food
+    food = (sh//2, sw//2)
+    stdscr.addch(food[0], food[1], '🍎', curses.color_pair(2))
 
-# Set up the display
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Snake Game")
+    # Initial direction
+    direction = curses.KEY_RIGHT
+    
+    # Game loop
+    score = 0
+    while True:
+        # Display score
+        stdscr.addstr(0, 0, f'Score: {score}')
+        
+        # Get next key press
+        next_key = stdscr.getch()
+        direction = direction if next_key == -1 else next_key
 
-# Clock to control the frame rate
-clock = pygame.time.Clock()
+        # Calculate new head position
+        head = snake[0]
+        if direction == curses.KEY_DOWN:
+            new_head = (head[0] + 1, head[1])
+        elif direction == curses.KEY_UP:
+            new_head = (head[0] - 1, head[1])
+        elif direction == curses.KEY_LEFT:
+            new_head = (head[0], head[1] - 1)
+        elif direction == curses.KEY_RIGHT:
+            new_head = (head[0], head[1] + 1)
 
-# Snake properties
-snake_block_size = 10
-snake_speed = 15
+        # Insert new head
+        snake.insert(0, new_head)
+        
+        # Check if we hit the food
+        if snake[0] == food:
+            score += 1
+            # Create new food
+            while True:
+                food = (random.randint(1, sh-2), random.randint(1, sw-2))
+                if food not in snake:
+                    break
+            stdscr.addch(food[0], food[1], '🍎', curses.color_pair(2))
+        else:
+            # Remove tail
+            tail = snake.pop()
+            stdscr.addch(tail[0], tail[1], ' ')
+        
+        # Draw snake
+        try:
+            stdscr.addch(snake[0][0], snake[0][1], '█', curses.color_pair(1))
+        except curses.error:
+            # Game over if we hit the walls
+            break
 
-# Font for displaying score
-font_style = pygame.font.SysFont(None, 50)
+        # Check if snake hits itself
+        if snake[0] in snake[1:]:
+            break
+        
+        # Check if we hit the borders
+        if (snake[0][0] >= sh-1 or snake[0][0] <= 0 or
+            snake[0][1] >= sw-1 or snake[0][1] <= 0):
+            break
 
-def our_snake(snake_block_size, snake_list):
-    for x in snake_list:
-        pygame.draw.rect(screen, BLACK, [x[0], x[1], snake_block_size, snake_block_size])
+    # Game Over
+    stdscr.clear()
+    msg = f'Game Over! Final Score: {score}'
+    stdscr.addstr(sh//2, (sw-len(msg))//2, msg)
+    stdscr.refresh()
+    time.sleep(2)
 
-def message(msg, color):
-    mesg = font_style.render(msg, True, color)
-    screen.blit(mesg, [SCREEN_WIDTH / 6 - mesg.get_width() / 2, SCREEN_HEIGHT / 3])
-
-def gameLoop():
-    game_over = False
-    game_close = False
-
-    x1 = SCREEN_WIDTH / 2
-    y1 = SCREEN_HEIGHT / 2
-
-    x1_change = 0
-    y1_change = 0
-
-    snake_List = []
-    Length_of_snake = 1
-
-    foodx = round(random.randrange(0, SCREEN_WIDTH - snake_block_size) / 10.0) * 10.0
-    foody = round(random.randrange(0, SCREEN_HEIGHT - snake_block_size) / 10.0) * 10.0
-
-    while not game_over:
-
-        while game_close == True:
-            screen.fill(WHITE)
-            message("You Lost! Press Q-Quit or C-Play Again", RED)
-            pygame.display.update()
-
-            for event in pygame.event.get():
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_q:
-                        game_over = True
-                        game_close = False
-                    if event.key == pygame.K_c:
-                        gameLoop()
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                game_over = True
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    x1_change = -snake_block_size
-                    y1_change = 0
-                elif event.key == pygame.K_RIGHT:
-                    x1_change = snake_block_size
-                    y1_change = 0
-                elif event.key == pygame.K_UP:
-                    y1_change = -snake_block_size
-                    x1_change = 0
-                elif event.key == pygame.K_DOWN:
-                    y1_change = snake_block_size
-                    x1_change = 0
-
-        if x1 >= SCREEN_WIDTH or x1 < 0 or y1 >= SCREEN_HEIGHT or y1 < 0:
-            game_close = True
-        x1 += x1_change
-        y1 += y1_change
-        screen.fill(WHITE)
-        pygame.draw.rect(screen, GREEN, [foodx, foody, snake_block_size, snake_block_size])
-        snake_Head = []
-        snake_Head.append(x1)
-        snake_Head.append(y1)
-        snake_List.append(snake_Head)
-        if len(snake_List) > Length_of_snake:
-            del snake_List[0]
-
-        for x in snake_List[:-1]:
-            if x == snake_Head:
-                game_close = True
-
-        our_snake(snake_block_size, snake_List)
-
-        pygame.display.update()
-
-        if x1 == foodx and y1 == foody:
-            foodx = round(random.randrange(0, SCREEN_WIDTH - snake_block_size) / 10.0) * 10.0
-            foody = round(random.randrange(0, SCREEN_HEIGHT - snake_block_size) / 10.0) * 10.0
-            Length_of_snake += 1
-
-        clock.tick(snake_speed)
-
-    pygame.quit()
-    quit()
-
-gameLoop()
+if __name__ == '__main__':
+    curses.wrapper(main)
