@@ -198,7 +198,7 @@ class Game:
             color = list(particle['color'])
             if len(color) == 3:
                 color.append(alpha)
-            pygame.draw.circle(screen, color, (int(particle['x']), int(particle['y']), particle['size']))
+            pygame.draw.circle(screen, color, (int(particle['x']), int(particle['y'])), particle['size'])
 
     def show_message(self, text, duration=2000):
         self.message = text
