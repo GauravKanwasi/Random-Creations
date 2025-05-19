@@ -23,7 +23,7 @@ BLUE = (0, 0, 255)
 PURPLE = (128, 0, 128)
 CYAN = (0, 255, 255)
 
-# Initialize screen with vsync for smooth animation
+# Initialize screen
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.HWSURFACE | pygame.DOUBLEBUF)
 pygame.display.set_caption("Epic Adventure")
 clock = pygame.time.Clock()
@@ -47,14 +47,11 @@ class AnimatedSprite:
     def update(self):
         self.pulse_time += 0.1
         self.scale = 1.0 + math.sin(self.pulse_time) * 0.1
-        
-        # Update trail
         self.trail.append((self.x, self.y))
         if len(self.trail) > 10:
             self.trail.pop(0)
         
     def draw(self, screen, color):
-        # Draw trail
         for i, (tx, ty) in enumerate(self.trail):
             alpha = int(255 * (i / len(self.trail)) * 0.5)
             trail_color = (*color[:3], alpha)
@@ -63,7 +60,6 @@ class AnimatedSprite:
             pygame.draw.circle(trail_surface, trail_color, (trail_size, trail_size), trail_size)
             screen.blit(trail_surface, (tx - trail_size, ty - trail_size))
 
-        # Draw glow
         glow_surface = pygame.Surface((self.glow_radius * 2, self.glow_radius * 2), pygame.SRCALPHA)
         for r in range(int(self.glow_radius), 0, -2):
             alpha = int(100 * (r / self.glow_radius))
@@ -71,11 +67,9 @@ class AnimatedSprite:
             pygame.draw.circle(glow_surface, glow_color, (self.glow_radius, self.glow_radius), r)
         screen.blit(glow_surface, (self.x - self.glow_radius, self.y - self.glow_radius))
         
-        # Draw main sprite
         scaled_size = int(self.size * self.scale)
         surface = pygame.Surface((scaled_size, scaled_size), pygame.SRCALPHA)
         pygame.draw.circle(surface, color, (scaled_size//2, scaled_size//2), scaled_size//2)
-        
         rotated_surface = pygame.transform.rotate(surface, self.angle)
         rect = rotated_surface.get_rect(center=(self.x, self.y))
         screen.blit(rotated_surface, rect)
@@ -90,7 +84,6 @@ class PowerUp(AnimatedSprite):
             'speed': (50, 255, 50),
             'power': (255, 255, 0)
         }[self.type]
-        self.collected = False
         
     def apply(self, player):
         if self.type == 'health':
@@ -138,39 +131,27 @@ class Player(AnimatedSprite):
         self.shield = self.max_shield
         self.attack += 5
         self.defense += 3
-        return True
 
     def draw(self, screen):
         super().draw(screen, self.color)
-        
-        # Draw shield bar
         shield_width = 100
         shield_height = 10
         shield_x = self.x - shield_width//2
         shield_y = self.y - self.size//2 - 20
-        
         pygame.draw.rect(screen, BLUE, (shield_x, shield_y, shield_width, shield_height))
         pygame.draw.rect(screen, CYAN, (shield_x, shield_y, shield_width * (self.shield/self.max_shield), shield_height))
-        
-        # Draw health bar
         health_width = 100
         health_height = 10
         health_x = self.x - health_width//2
         health_y = shield_y - 15
-        
         pygame.draw.rect(screen, RED, (health_x, health_y, health_width, health_height))
         pygame.draw.rect(screen, GREEN, (health_x, health_y, health_width * (self.health/self.max_health), health_height))
-        
-        # Draw experience bar
         exp_width = 100
         exp_height = 5
         exp_x = self.x - exp_width//2
         exp_y = health_y - 10
-        
         pygame.draw.rect(screen, BLUE, (exp_x, exp_y, exp_width, exp_height))
         pygame.draw.rect(screen, PURPLE, (exp_x, exp_y, exp_width * (self.experience/self.exp_to_next_level), exp_height))
-        
-        # Draw combo counter if active
         if self.combo > 0:
             combo_text = font_medium.render(f"{self.combo}x", True, GOLD)
             screen.blit(combo_text, (self.x + 50, self.y - 50))
@@ -197,9 +178,7 @@ class Enemy(AnimatedSprite):
         dx = player.x - self.x
         dy = player.y - self.y
         dist = math.sqrt(dx*dx + dy*dy)
-        
         self.pattern_time += 0.05
-        
         if self.attack_pattern == 'chase':
             if dist > 0:
                 self.x += (dx/dist) * self.speed
@@ -212,18 +191,14 @@ class Enemy(AnimatedSprite):
             if dist > 0:
                 self.x += (dx/dist) * self.speed
                 self.y += (dy/dist) * self.speed + math.sin(self.pattern_time * 5) * 5
-                
         self.angle = math.degrees(math.atan2(dy, dx))
             
     def draw(self, screen):
         super().draw(screen, self.color)
-        
-        # Draw health bar
         health_width = 40
         health_height = 5
         health_x = self.x - health_width//2
         health_y = self.y - self.size//2 - 10
-        
         pygame.draw.rect(screen, RED, (health_x, health_y, health_width, health_height))
         pygame.draw.rect(screen, GREEN, (health_x, health_y, health_width * (self.health/self.max_health), health_height))
 
@@ -240,6 +215,16 @@ class Game:
         self.score = 0
         self.wave = 1
         self.wave_enemies = 5
+        self.state = "playing"
+        self.selected_item = 0
+        self.shop_items = [
+            {"name": "Health Potion", "cost": 50, "effect": lambda p: setattr(p, 'health', min(p.max_health, p.health + 50))},
+            {"name": "Shield Recharge", "cost": 50, "effect": lambda p: setattr(p, 'shield', min(p.max_shield, p.shield + 50))},
+            {"name": "Attack Boost", "cost": 100, "effect": lambda p: setattr(p, 'attack', p.attack + 5)},
+            {"name": "Defense Boost", "cost": 100, "effect": lambda p: setattr(p, 'defense', p.defense + 3)},
+            {"name": "Speed Boost", "cost": 100, "effect": lambda p: setattr(p, 'speed', min(10, p.speed + 1))},
+            {"name": "Proceed to next wave", "cost": 0, "effect": lambda p: None}
+        ]
         
     def spawn_enemy(self):
         side = random.randint(0, 3)
@@ -255,7 +240,6 @@ class Game:
         else:  # Left
             x = -20
             y = random.randint(0, WINDOW_HEIGHT)
-        
         self.enemies.append(Enemy(x, y))
 
     def spawn_power_up(self):
@@ -301,137 +285,121 @@ class Game:
         try:
             print("Welcome to Epic Adventure!")
             print("What is your name, brave warrior?")
-            name = input("> ").strip()
-            if not name:
-                name = "Warrior"
+            name = input("> ").strip() or "Warrior"
         except (EOFError, KeyboardInterrupt):
             print("\nGame terminated.")
             pygame.quit()
             sys.exit(0)
             
         self.player = Player(name)
-        
         running = True
         while running:
-            # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
-                        # Attack nearby enemies
-                        hit_enemy = False
-                        for enemy in self.enemies[:]:
-                            dx = enemy.x - self.player.x
-                            dy = enemy.y - self.player.y
-                            dist = math.sqrt(dx*dx + dy*dy)
-                            if dist < 100:
-                                damage = self.player.attack * (1 + self.player.combo * 0.1)
-                                enemy.health -= damage
-                                self.add_particle(enemy.x, enemy.y, RED)
-                                hit_enemy = True
-                                if enemy.health <= 0:
-                                    self.player.gain_experience(enemy.experience_value)
-                                    self.player.gold += enemy.gold_value
-                                    self.score += 100 * (1 + self.player.combo * 0.1)
-                                    self.enemies.remove(enemy)
-                                    self.add_particle(enemy.x, enemy.y, GOLD, 3)
-                                    
-                        if hit_enemy:
-                            self.player.combo += 1
-                            self.player.combo_timer = 60
-                        else:
-                            self.player.combo = 0
-
-            # Handle movement
-            keys = pygame.key.get_pressed()
-            dx = keys[pygame.K_d] - keys[pygame.K_a]
-            dy = keys[pygame.K_s] - keys[pygame.K_w]
-            if dx != 0 or dy != 0:
-                self.player.move(dx, dy)
-
-            # Update
-            self.player.update()
-            
-            # Update combo timer
-            if self.player.combo_timer > 0:
-                self.player.combo_timer -= 1
-                if self.player.combo_timer <= 0:
-                    self.player.combo = 0
-            
-            # Spawn enemies
-            self.spawn_timer += 1
-            if self.spawn_timer >= 60 and len(self.enemies) < self.wave_enemies:
-                self.spawn_enemy()
-                self.spawn_timer = 0
-                
-            # Spawn power-ups
-            self.power_up_timer += 1
-            if self.power_up_timer >= 300:  # Every 5 seconds
-                self.spawn_power_up()
-                self.power_up_timer = 0
-                
-            # Check wave completion
-            if len(self.enemies) == 0 and self.spawn_timer >= 60:
-                self.wave += 1
-                self.wave_enemies = int(self.wave_enemies * 1.5)
-                self.show_message(f"Wave {self.wave} incoming!")
-                self.spawn_timer = 0
-
-            # Update enemies
-            for enemy in self.enemies:
-                enemy.update(self.player)
-                
-                # Check collision with player
-                dx = enemy.x - self.player.x
-                dy = enemy.y - self.player.y
-                dist = math.sqrt(dx*dx + dy*dy)
-                if dist < (enemy.size + self.player.size) / 2:
-                    # First damage shield
-                    if self.player.shield > 0:
-                        damage = max(1, 10 - self.player.defense)
-                        self.player.shield -= damage
-                        self.add_particle(self.player.x, self.player.y, BLUE)
-                    else:  # Then damage health
-                        damage = max(1, 10 - self.player.defense)
-                        self.player.health -= damage
-                        self.add_particle(self.player.x, self.player.y, RED)
-                        if self.player.health <= 0:
-                            running = False
-                            
-            # Update power-ups
-            for power_up in self.power_ups[:]:
-                dx = power_up.x - self.player.x
-                dy = power_up.y - self.player.y
-                dist = math.sqrt(dx*dx + dy*dy)
-                if dist < (power_up.size + self.player.size) / 2:
-                    power_up.apply(self.player)
-                    self.power_ups.remove(power_up)
-                    self.add_particle(power_up.x, power_up.y, power_up.color, 3)
-                    self.show_message(f"{power_up.type.capitalize()} power-up collected!")
+                    if self.state == "playing":
+                        if event.key == pygame.K_SPACE:
+                            hit_enemy = False
+                            for enemy in self.enemies[:]:
+                                dx = enemy.x - self.player.x
+                                dy = enemy.y - self.player.y
+                                dist = math.sqrt(dx*dx + dy*dy)
+                                if dist < 100:
+                                    damage = self.player.attack * (1 + self.player.combo * 0.1)
+                                    enemy.health -= damage
+                                    self.add_particle(enemy.x, enemy.y, RED)
+                                    hit_enemy = True
+                                    if enemy.health <= 0:
+                                        self.player.gain_experience(enemy.experience_value)
+                                        self.player.gold += enemy.gold_value
+                                        self.score += 100 * (1 + self.player.combo * 0.1)
+                                        self.enemies.remove(enemy)
+                                        self.add_particle(enemy.x, enemy.y, GOLD, 3)
+                            if hit_enemy:
+                                self.player.combo += 1
+                                self.player.combo_timer = 60
+                            else:
+                                self.player.combo = 0
+                    elif self.state == "shop":
+                        if event.key == pygame.K_UP:
+                            self.selected_item = (self.selected_item - 1) % len(self.shop_items)
+                        elif event.key == pygame.K_DOWN:
+                            self.selected_item = (self.selected_item + 1) % len(self.shop_items)
+                        elif event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                            item = self.shop_items[self.selected_item]
+                            if item["name"] == "Proceed to next wave":
+                                self.state = "playing"
+                                self.wave += 1
+                                self.wave_enemies = int(self.wave_enemies * 1.5)
+                                self.spawn_timer = 0
+                            elif self.player.gold >= item["cost"]:
+                                item["effect"](self.player)
+                                self.player.gold -= item["cost"]
+                                self.show_message(f"Purchased {item['name']}!")
+                            else:
+                                self.show_message("Not enough gold!")
 
             self.update_particles()
             if self.message_timer > 0:
                 self.message_timer -= clock.get_time()
 
-            # Draw
+            if self.state == "playing":
+                keys = pygame.key.get_pressed()
+                dx = keys[pygame.K_d] - keys[pygame.K_a]
+                dy = keys[pygame.K_s] - keys[pygame.K_w]
+                if dx != 0 or dy != 0:
+                    self.player.move(dx, dy)
+                self.player.update()
+                if self.player.combo_timer > 0:
+                    self.player.combo_timer -= 1
+                    if self.player.combo_timer <= 0:
+                        self.player.combo = 0
+                self.spawn_timer += 1
+                if self.spawn_timer >= 60 and len(self.enemies) < self.wave_enemies:
+                    self.spawn_enemy()
+                    self.spawn_timer = 0
+                self.power_up_timer += 1
+                if self.power_up_timer >= 300:
+                    self.spawn_power_up()
+                    self.power_up_timer = 0
+                for enemy in self.enemies:
+                    enemy.update(self.player)
+                    dx = enemy.x - self.player.x
+                    dy = enemy.y - self.player.y
+                    dist = math.sqrt(dx*dx + dy*dy)
+                    if dist < (enemy.size + self.player.size) / 2:
+                        if self.player.shield > 0:
+                            damage = max(1, 10 - self.player.defense)
+                            self.player.shield -= damage
+                            self.add_particle(self.player.x, self.player.y, BLUE)
+                        else:
+                            damage = max(1, 10 - self.player.defense)
+                            self.player.health -= damage
+                            self.add_particle(self.player.x, self.player.y, RED)
+                            if self.player.health <= 0:
+                                running = False
+                for power_up in self.power_ups[:]:
+                    dx = power_up.x - self.player.x
+                    dy = power_up.y - self.player.y
+                    dist = math.sqrt(dx*dx + dy*dy)
+                    if dist < (power_up.size + self.player.size) / 2:
+                        power_up.apply(self.player)
+                        self.power_ups.remove(power_up)
+                        self.add_particle(power_up.x, power_up.y, power_up.color, 3)
+                        self.show_message(f"{power_up.type.capitalize()} power-up collected!")
+                if len(self.enemies) == 0:
+                    self.state = "shop"
+                    self.selected_item = 0
+                    self.show_message("Wave cleared! Visit the shop.")
+
             screen.fill(BLACK)
-            
-            # Draw particles
             self.draw_particles(screen)
-            
-            # Draw power-ups
             for power_up in self.power_ups:
                 power_up.draw(screen)
-            
-            # Draw enemies
             for enemy in self.enemies:
                 enemy.draw(screen)
-            
-            # Draw player
             self.player.draw(screen)
-            
-            # Draw UI
             pygame.draw.rect(screen, BLACK, (0, 0, WINDOW_WIDTH, 60))
             health_text = font_medium.render(f"Health: {int(self.player.health)}/{self.player.max_health}", True, WHITE)
             shield_text = font_medium.render(f"Shield: {int(self.player.shield)}/{self.player.max_shield}", True, CYAN)
@@ -439,7 +407,6 @@ class Game:
             level_text = font_medium.render(f"Level: {self.player.level}", True, PURPLE)
             score_text = font_medium.render(f"Score: {int(self.score)}", True, WHITE)
             wave_text = font_medium.render(f"Wave: {self.wave}", True, RED)
-            
             screen.blit(health_text, (10, 10))
             screen.blit(shield_text, (250, 10))
             screen.blit(gold_text, (500, 10))
@@ -447,7 +414,19 @@ class Game:
             screen.blit(score_text, (10, 50))
             screen.blit(wave_text, (250, 50))
 
-            # Draw message
+            if self.state == "shop":
+                overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 128))
+                screen.blit(overlay, (0, 0))
+                shop_text = font_large.render("Shop", True, WHITE)
+                screen.blit(shop_text, (WINDOW_WIDTH//2 - shop_text.get_width()//2, 100))
+                gold_text = font_medium.render(f"Gold: {self.player.gold}", True, GOLD)
+                screen.blit(gold_text, (WINDOW_WIDTH//2 - gold_text.get_width()//2, 150))
+                for i, item in enumerate(self.shop_items):
+                    color = CYAN if i == self.selected_item else WHITE
+                    item_text = font_medium.render(f"{item['name']} - {item['cost']}g", True, color)
+                    screen.blit(item_text, (WINDOW_WIDTH//2 - item_text.get_width()//2, 200 + i * 50))
+
             if self.message_timer > 0:
                 message_surface = font_large.render(self.message, True, WHITE)
                 message_rect = message_surface.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT - 50))
@@ -456,23 +435,19 @@ class Game:
             pygame.display.flip()
             clock.tick(FPS)
 
-        # Game Over
         screen.fill(BLACK)
         game_over_text = font_large.render("Game Over!", True, RED)
         score_text = font_medium.render(f"Final Score: {int(self.score)}", True, WHITE)
         wave_text = font_medium.render(f"Waves Survived: {self.wave}", True, RED)
         level_text = font_medium.render(f"Final Level: {self.player.level}", True, PURPLE)
         gold_text = font_medium.render(f"Gold Collected: {self.player.gold}", True, GOLD)
-        
         screen.blit(game_over_text, game_over_text.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT//2 - 100)))
         screen.blit(score_text, score_text.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT//2)))
         screen.blit(wave_text, wave_text.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT//2 + 50)))
         screen.blit(level_text, level_text.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT//2 + 100)))
         screen.blit(gold_text, gold_text.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT//2 + 150)))
-        
         pygame.display.flip()
         pygame.time.wait(3000)
-        
         pygame.quit()
         sys.exit()
 
