@@ -109,14 +109,13 @@ class Die:
             
             # Physics-based bounce animation
             self.y += self.vy
-            self.vy += 0.6  # Adjusted gravity
+            self.vy += 0.6
             if self.y > self.target_y and self.bounce_count < self.max_bounces:
                 self.y = self.target_y
                 self.vy = -self.vy * 0.7
                 self.bounce_count += 1
                 if IMPACT_SOUND:
                     IMPACT_SOUND.play()
-                # Create particles on bounce
                 for _ in range(8):
                     self.particles.append(Particle(self.x + self.size/2, self.y + self.size, GOLD))
 
@@ -133,9 +132,8 @@ class Die:
                 self.vy = 0
                 if self.value == self.sides and SUCCESS_SOUND:
                     SUCCESS_SOUND.play()
-                    self.glow = 60  # Glow effect for critical roll
+                    self.glow = 60
 
-            # Update particles and glow
             self.particles = [p for p in self.particles if p.age < p.lifetime]
             for particle in self.particles:
                 particle.update()
@@ -146,19 +144,16 @@ class Die:
         current_size = int(self.size * self.scale)
         die_surface = pygame.Surface((current_size * 2, current_size * 2), pygame.SRCALPHA)
         
-        # Draw glowing effect for critical rolls
         if self.glow > 0:
             glow_surface = pygame.Surface((current_size * 2, current_size * 2), pygame.SRCALPHA)
             glow_alpha = int(128 * (self.glow / 60))
             pygame.draw.rect(glow_surface, (*GREEN[:3], glow_alpha), (0, 0, current_size, current_size), 0, 10)
             die_surface.blit(glow_surface, (current_size // 4, current_size // 4))
 
-        # Draw die with shadow
         pygame.draw.rect(die_surface, (50, 50, 50, 50), (current_size // 4 + 2, current_size // 4 + 2, current_size, current_size), 0, 10)
         pygame.draw.rect(die_surface, self.color, (current_size // 4, current_size // 4, current_size, current_size), 0, 10)
         pygame.draw.rect(die_surface, BLACK, (current_size // 4, current_size // 4, current_size, current_size), 2, 10)
         
-        # Draw dots or number
         if 1 <= self.value <= 6:
             dot_radius = max(4, current_size // 10)
             for px, py in DIE_FACES.get(self.value, []):
@@ -175,7 +170,6 @@ class Die:
         rotated_rect = rotated_surface.get_rect(center=(self.x + self.size // 2, self.y + self.size // 2))
         screen.blit(rotated_surface, rotated_rect)
 
-        # Draw particles
         for particle in self.particles:
             particle.draw(screen)
 
@@ -186,7 +180,6 @@ class Button:
         self.color = color
         self.hover_color = hover_color
         self.current_color = color
-        self.clicked = False
         self.scale = 1.0
         self.target_scale = 1.0
 
@@ -271,7 +264,7 @@ class Statistics:
     def add_roll(self, results):
         self.rolls.append(results)
         self.total_rolls += len(results)
-        if len(self.rolls) > 100:  # Limit history
+        if len(self.rolls) > 100:
             self.rolls.pop(0)
 
     def get_stats(self):
@@ -309,10 +302,8 @@ def main():
     pygame.display.set_caption("Super Dice Rolling Simulator")
     clock = pygame.time.Clock()
     
-    # Load saved settings
     settings = load_settings()
     
-    # Color options
     COLOR_OPTIONS = {
         'white': WHITE,
         'red': RED,
@@ -320,7 +311,6 @@ def main():
         'purple': PURPLE
     }
     
-    # Create UI elements
     dice_count_input = InputBox(300, 120, 200, 30, settings['dice_count'])
     sides_input = InputBox(300, 170, 200, 30, settings['sides'])
     roll_button = Button(300, 220, 200, 50, "Roll Dice", LIGHT_BLUE, DARK_BLUE)
@@ -353,6 +343,41 @@ def main():
                 
             dice_count_input.handle_event(event)
             sides_input.handle_event(event)
+            
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    try:
+                        num_dice = max(1, min(10, int(dice_count_input.text)))
+                        sides = max(2, min(100, int(sides_input.text)))
+                        
+                        dice = []
+                        results = []
+                        
+                        dice_size = min(100, 600 // num_dice)
+                        spacing = min(20, 100 // num_dice)
+                        total_width = num_dice * (dice_size + spacing) - spacing
+                        start_x = (WIDTH - total_width) // 2
+                        
+                        for i in range(num_dice):
+                            x = start_x + i * (dice_size + spacing)
+                            y = 400
+                            die = Die(x, y, dice_size, sides, COLOR_OPTIONS[current_color])
+                            die.roll()
+                            if current_mode == 'quick':
+                                die.roll_frames = die.total_roll_frames - 1
+                            dice.append(die)
+                            
+                        rolling = True
+                        save_settings(num_dice, sides, current_color, 'normal', current_mode)
+                        error_message = ""
+                        
+                    except ValueError:
+                        error_message = "Enter numbers (1-10 dice, 2-100 sides)!"
+                        error_timer = 120
+                        dice_count_input.error = True
+                        sides_input.error = True
+                        dice_count_input.error_timer = 120
+                        sides_input.error_timer = 120
             
             if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
                 pos = event.pos if hasattr(event, 'pos') else (event.x * WIDTH, event.y * HEIGHT)
@@ -444,7 +469,6 @@ def main():
                     if CLICK_SOUND:
                         CLICK_SOUND.play()
         
-        # Update
         dice_count_input.update()
         sides_input.update()
         roll_button.update(mouse_pos)
@@ -472,22 +496,18 @@ def main():
         if error_timer > 0:
             error_timer -= 1
         
-        # Draw
         screen.fill((240, 240, 240) if current_mode != 'casino' else (0, 100, 0))
         
-        # Draw title with animation
         title_scale = 1.0 + 0.03 * math.sin(time.time() * 2)
         title_text = title_font.render("Super Dice Rolling Simulator", True, BLACK)
         title_surface = pygame.transform.scale(title_text, 
             (int(title_text.get_width() * title_scale), int(title_text.get_height() * title_scale)))
         screen.blit(title_surface, (WIDTH // 2 - title_surface.get_width() // 2, 20))
         
-        # Draw input labels
         label_font = pygame.font.SysFont('Arial', 20)
         screen.blit(label_font.render("Number of Dice:", True, BLACK), (150, 125))
         screen.blit(label_font.render("Number of Sides:", True, BLACK), (150, 175))
         
-        # Draw UI elements
         dice_count_input.draw(screen)
         sides_input.draw(screen)
         roll_button.draw(screen)
@@ -496,23 +516,19 @@ def main():
         color_button.draw(screen)
         mode_button.draw(screen)
         
-        # Draw dice
         for die in dice:
             die.draw(screen)
         
-        # Draw results and history
         if results:
             results_text = font.render(f"Results: {results}", True, BLACK)
             total_text = font.render(f"Total: {total}", True, BLACK)
-            screen.blit(results_text, (WIDTH // 2 - results_text.get_width() // 2, 520))
+            screen.blit(results_text, (WIDTH // // 2 - results_text.get_width() // 2, 520))
             screen.blit(total_text, (WIDTH // 2 - total_text.get_width() // 2, 550))
         
-        # Draw roll history
         for i, (hist_results, hist_total) in enumerate(roll_history[:-1]):
             history_text = small_font.render(f"Roll {len(roll_history)-i-1}: {hist_results} = {hist_total}", True, (100, 100, 100))
             screen.blit(history_text, (20, 80 + i * 20))
         
-        # Draw statistics
         stats_data = stats.get_stats()
         stats_text = [
             f"Rolls: {stats.total_rolls}",
@@ -524,7 +540,14 @@ def main():
             stats_surface = small_font.render(text, True, BLACK)
             screen.blit(stats_surface, (WIDTH - 100, 80 + i * 20))
         
-        # Draw error message
+        # Draw top five frequencies
+        frequency = stats_data['frequency']
+        if frequency:
+            top_five = sorted(frequency.items(), key=lambda x: x[1], reverse=True)[:5]
+            top_five_text = "Top 5: " + ", ".join([f"{num}: {count}" for num, count in top_five])
+            top_five_surface = small_font.render(top_five_text, True, BLACK)
+            screen.blit(top_five_surface, (WIDTH - 100, 80 + 4 * 20))
+        
         if error_timer > 0:
             error_text = font.render(error_message, True, RED)
             screen.blit(error_text, (WIDTH // 2 - error_text.get_width() // 2, 350))
