@@ -21,6 +21,7 @@ GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 GRAY = (100, 100, 100)
+YELLOW = (255, 255, 0)
 
 # Initialize screen
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -32,8 +33,9 @@ class Paddle:
         self.x = x
         self.y = WINDOW_HEIGHT // 2 - PADDLE_HEIGHT // 2
         self.color = color
-        self.speed = 7
+        self.speed = 7  # Default speed, adjusted for opponent in Game
         self.score = 0
+        self.hit_timer = 0  # Timer for flash effect
         
     def move(self, up=True):
         if up and self.y > 0:
@@ -42,12 +44,18 @@ class Paddle:
             self.y += self.speed
             
     def draw(self):
-        pygame.draw.rect(screen, self.color, (self.x, self.y, PADDLE_WIDTH, PADDLE_HEIGHT), border_radius=5)
+        # Flash yellow when hit, then revert to original color
+        if self.hit_timer > 0:
+            color = YELLOW
+            self.hit_timer -= 1
+        else:
+            color = self.color
+        pygame.draw.rect(screen, color, (self.x, self.y, PADDLE_WIDTH, PADDLE_HEIGHT), border_radius=5)
         
     def get_rect(self):
         return pygame.Rect(self.x, self.y, PADDLE_WIDTH, PADDLE_HEIGHT)
 
-# Ball class with trail effect
+# Ball class with enhanced trail effect
 class Ball:
     def __init__(self):
         self.reset()
@@ -70,20 +78,24 @@ class Ball:
         # Bounce off top and bottom
         if self.y <= 0 or self.y >= WINDOW_HEIGHT - BALL_SIZE:
             self.speed_y = -self.speed_y
+            # Uncomment to play wall sound (requires sound file)
+            # game.wall_sound.play()
             
     def draw(self):
-        # Draw trail with decreasing size
+        # Draw trail with fading shades of gray
         for i, pos in enumerate(self.trail):
+            shade = 255 - int(200 * i / len(self.trail))
+            color = (shade, shade, shade)
             size = BALL_SIZE // 2 - i // 3
             if size > 0:
-                pygame.draw.circle(screen, WHITE, (int(pos[0]), int(pos[1])), size)
+                pygame.draw.circle(screen, color, (int(pos[0]), int(pos[1])), size)
         # Draw ball
         pygame.draw.circle(screen, WHITE, (int(self.x), int(self.y)), BALL_SIZE // 2)
         
     def get_rect(self):
         return pygame.Rect(self.x - BALL_SIZE // 2, self.y - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE)
 
-# Particle class for collision effects
+# Particle class with fading effect
 class Particle:
     def __init__(self, x, y):
         self.x = x
@@ -100,7 +112,9 @@ class Particle:
         
     def draw(self):
         if self.lifetime > 0:
-            pygame.draw.circle(screen, WHITE, (int(self.x), int(self.y)), self.size)
+            shade = int(255 * self.lifetime / 20)  # Fade based on lifetime
+            color = (shade, shade, shade)
+            pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
 
 # Game class managing the overall game
 class Game:
@@ -121,11 +135,16 @@ class Game:
         self.winner = None
         self.target_score = TARGET_SCORE
         
-        # Create gradient background for start screen
+        # Gradient background for start screen
         self.gradient = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
         for y in range(WINDOW_HEIGHT):
             color = (0 + int(100 * y / WINDOW_HEIGHT), 0 + int(100 * y / WINDOW_HEIGHT), 50 + int(205 * y / WINDOW_HEIGHT))
             pygame.draw.line(self.gradient, color, (0, y), (WINDOW_WIDTH, y))
+        
+        # Load sound effects (uncomment with sound files available)
+        # self.hit_sound = pygame.mixer.Sound('hit.wav')
+        # self.wall_sound = pygame.mixer.Sound('wall.wav')
+        # self.score_sound = pygame.mixer.Sound('score.wav')
         
     def draw_start_screen(self):
         screen.blit(self.gradient, (0, 0))
@@ -169,7 +188,9 @@ class Game:
         
     def enhanced_ai(self):
         reaction = self.opponent_reaction[self.difficulty]
-        predicted_y = self.ball.y + self.ball.speed_y * 10
+        # Add prediction error based on difficulty
+        error = random.uniform(-50, 50) * (1 - (self.difficulty - 1) / 2)
+        predicted_y = self.ball.y + self.ball.speed_y * 10 + error
         if random.random() < reaction:
             if self.opponent.y + PADDLE_HEIGHT/2 < predicted_y:
                 self.opponent.move(up=False)
@@ -184,14 +205,20 @@ class Game:
                 self.ball.speed_y -= 0.5
             elif keys[pygame.K_s]:
                 self.ball.speed_y += 0.5
+            self.player.hit_timer = 10  # Trigger flash
             for _ in range(5):
                 self.particles.append(Particle(self.ball.x, self.ball.y))
+            # Uncomment to play hit sound (requires sound file)
+            # self.hit_sound.play()
                 
         if self.ball.get_rect().colliderect(self.opponent.get_rect()):
             self.ball.speed_x = -abs(self.ball.speed_x) * 1.1
             self.ball.speed_y += random.uniform(-0.5, 0.5)
+            self.opponent.hit_timer = 10  # Trigger flash
             for _ in range(5):
                 self.particles.append(Particle(self.ball.x, self.ball.y))
+            # Uncomment to play hit sound (requires sound file)
+            # self.hit_sound.play()
                 
         # Cap ball speed
         self.ball.speed_x = max(min(self.ball.speed_x, 10), -10)
@@ -218,6 +245,8 @@ class Game:
                     if self.state == "start":
                         if event.key == pygame.K_SPACE:
                             self.state = "playing"
+                            # Set opponent speed based on difficulty
+                            self.opponent.speed = {1: 5, 2: 7, 3: 9}[self.difficulty]
                         elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                             self.difficulty = int(event.unicode)
                     elif self.state == "playing":
@@ -260,6 +289,8 @@ class Game:
                     if self.ball.x <= 0:
                         self.opponent.score += 1
                         self.flash_timer = 6
+                        # Uncomment to play score sound (requires sound file)
+                        # self.score_sound.play()
                         if self.opponent.score >= self.target_score:
                             self.winner = "Opponent"
                             self.state = "game_over"
@@ -268,6 +299,8 @@ class Game:
                     elif self.ball.x >= WINDOW_WIDTH - BALL_SIZE:
                         self.player.score += 1
                         self.flash_timer = 6
+                        # Uncomment to play score sound (requires sound file)
+                        # self.score_sound.play()
                         if self.player.score >= self.target_score:
                             self.winner = "Player"
                             self.state = "game_over"
@@ -280,6 +313,10 @@ class Game:
                     # Draw court details
                     pygame.draw.aaline(screen, WHITE, (WINDOW_WIDTH//2, 0), (WINDOW_WIDTH//2, WINDOW_HEIGHT))
                     pygame.draw.rect(screen, BLUE, (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), 5)
+                    
+                    # Draw net
+                    for y in range(0, WINDOW_HEIGHT, 20):
+                        pygame.draw.line(screen, WHITE, (WINDOW_WIDTH//2 - 2, y), (WINDOW_WIDTH//2 - 2, y + 10), 4)
                     
                     # Draw scores with labels
                     player_label = self.small_font.render("Player", True, GREEN)
