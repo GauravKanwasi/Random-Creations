@@ -6,6 +6,7 @@ import os
 
 # Initialize Pygame
 pygame.init()
+pygame.mixer.init()
 
 # Constants
 WINDOW_WIDTH = 1024
@@ -23,10 +24,14 @@ BLUE = (0, 0, 255)
 PURPLE = (128, 0, 128)
 CYAN = (0, 255, 255)
 
-# Initialize screen
+# Initialize screen and audio
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.HWSURFACE | pygame.DOUBLEBUF)
 pygame.display.set_caption("Epic Adventure")
 clock = pygame.time.Clock()
+hit_sound = pygame.mixer.Sound('hit.wav')  # Requires hit.wav
+powerup_sound = pygame.mixer.Sound('powerup.wav')  # Requires powerup.wav
+pygame.mixer.music.load('background.mp3')  # Requires background.mp3
+pygame.mixer.music.play(-1)
 
 # Load fonts
 font_large = pygame.font.Font(None, 64)
@@ -162,14 +167,14 @@ class Player(AnimatedSprite):
         self.angle = math.degrees(math.atan2(dy, dx)) if (dx != 0 or dy != 0) else self.angle
 
 class Enemy(AnimatedSprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, wave):
         super().__init__(x, y, 30)
-        self.health = 50
-        self.max_health = 50
-        self.speed = 2
+        self.health = 50 + 10 * wave
+        self.max_health = self.health
+        self.speed = 2 + 0.1 * wave
         self.color = RED
-        self.experience_value = 20
-        self.gold_value = random.randint(5, 15)
+        self.experience_value = 20 + 5 * wave
+        self.gold_value = random.randint(5 + wave, 15 + wave * 2)
         self.attack_pattern = random.choice(['chase', 'circle', 'zigzag'])
         self.pattern_time = 0
         
@@ -202,6 +207,17 @@ class Enemy(AnimatedSprite):
         pygame.draw.rect(screen, RED, (health_x, health_y, health_width, health_height))
         pygame.draw.rect(screen, GREEN, (health_x, health_y, health_width * (self.health/self.max_health), health_height))
 
+class BossEnemy(Enemy):
+    def __init__(self, x, y, wave):
+        super().__init__(x, y, wave)
+        self.health = 200 + 50 * wave
+        self.max_health = self.health
+        self.speed = 1.5 + 0.05 * wave
+        self.color = PURPLE
+        self.experience_value = 100 + 20 * wave
+        self.gold_value = 50 + 10 * wave
+        self.size = 50
+
 class Game:
     def __init__(self):
         self.player = None
@@ -217,30 +233,35 @@ class Game:
         self.wave_enemies = 5
         self.state = "playing"
         self.selected_item = 0
+        self.is_boss_wave = False
+        self.player_hit_timer = 0
         self.shop_items = [
-            {"name": "Health Potion", "cost": 50, "effect": lambda p: setattr(p, 'health', min(p.max_health, p.health + 50))},
-            {"name": "Shield Recharge", "cost": 50, "effect": lambda p: setattr(p, 'shield', min(p.max_shield, p.shield + 50))},
-            {"name": "Attack Boost", "cost": 100, "effect": lambda p: setattr(p, 'attack', p.attack + 5)},
-            {"name": "Defense Boost", "cost": 100, "effect": lambda p: setattr(p, 'defense', p.defense + 3)},
-            {"name": "Speed Boost", "cost": 100, "effect": lambda p: setattr(p, 'speed', min(10, p.speed + 1))},
+            {"name": "Health Potion", "cost": 75, "effect": lambda p: setattr(p, 'health', min(p.max_health, p.health + 50))},
+            {"name": "Shield Recharge", "cost": 75, "effect": lambda p: setattr(p, 'shield', min(p.max_shield, p.shield + 50))},
+            {"name": "Attack Boost", "cost": 150, "effect": lambda p: setattr(p, 'attack', p.attack + 5)},
+            {"name": "Defense Boost", "cost": 150, "effect": lambda p: setattr(p, 'defense', p.defense + 3)},
+            {"name": "Speed Boost", "cost": 150, "effect": lambda p: setattr(p, 'speed', min(10, p.speed + 1))},
             {"name": "Proceed to next wave", "cost": 0, "effect": lambda p: None}
         ]
         
     def spawn_enemy(self):
         side = random.randint(0, 3)
-        if side == 0:  # Top
+        if side == 0:
             x = random.randint(0, WINDOW_WIDTH)
             y = -20
-        elif side == 1:  # Right
+        elif side == 1:
             x = WINDOW_WIDTH + 20
             y = random.randint(0, WINDOW_HEIGHT)
-        elif side == 2:  # Bottom
+        elif side == 2:
             x = random.randint(0, WINDOW_WIDTH)
             y = WINDOW_HEIGHT + 20
-        else:  # Left
+        else:
             x = -20
             y = random.randint(0, WINDOW_HEIGHT)
-        self.enemies.append(Enemy(x, y))
+        if self.is_boss_wave:
+            self.enemies.append(BossEnemy(x, y, self.wave))
+        else:
+            self.enemies.append(Enemy(x, y, self.wave))
 
     def spawn_power_up(self):
         x = random.randint(50, WINDOW_WIDTH - 50)
@@ -282,16 +303,28 @@ class Game:
         self.message_timer = duration
 
     def run(self):
-        try:
-            print("Welcome to Epic Adventure!")
-            print("What is your name, brave warrior?")
-            name = input("> ").strip() or "Warrior"
-        except (EOFError, KeyboardInterrupt):
-            print("\nGame terminated.")
-            pygame.quit()
-            sys.exit(0)
-            
-        self.player = Player(name)
+        name = ""
+        input_active = True
+        while input_active:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN and name:
+                        input_active = False
+                    elif event.key == pygame.K_BACKSPACE:
+                        name = name[:-1]
+                    elif event.unicode.isalnum():
+                        name += event.unicode
+            screen.fill(BLACK)
+            prompt = font_large.render("Enter your name:", True, WHITE)
+            name_text = font_medium.render(name, True, CYAN)
+            screen.blit(prompt, (WINDOW_WIDTH//2 - prompt.get_width()//2, WINDOW_HEIGHT//2 - 50))
+            screen.blit(name_text, (WINDOW_WIDTH//2 - name_text.get_width()//2, WINDOW_HEIGHT//2 + 50))
+            pygame.display.flip()
+            clock.tick(FPS)
+        self.player = Player(name or "Warrior")
         running = True
         while running:
             for event in pygame.event.get():
@@ -317,6 +350,7 @@ class Game:
                                         self.enemies.remove(enemy)
                                         self.add_particle(enemy.x, enemy.y, GOLD, 3)
                             if hit_enemy:
+                                hit_sound.play()
                                 self.player.combo += 1
                                 self.player.combo_timer = 60
                             else:
@@ -331,7 +365,12 @@ class Game:
                             if item["name"] == "Proceed to next wave":
                                 self.state = "playing"
                                 self.wave += 1
-                                self.wave_enemies = int(self.wave_enemies * 1.5)
+                                if self.wave % 5 == 0:
+                                    self.is_boss_wave = True
+                                    self.wave_enemies = 1
+                                else:
+                                    self.is_boss_wave = False
+                                    self.wave_enemies = int(self.wave_enemies * 1.5) if self.wave > 1 else 5
                                 self.spawn_timer = 0
                             elif self.player.gold >= item["cost"]:
                                 item["effect"](self.player)
@@ -377,6 +416,7 @@ class Game:
                             damage = max(1, 10 - self.player.defense)
                             self.player.health -= damage
                             self.add_particle(self.player.x, self.player.y, RED)
+                            self.player_hit_timer = 10
                             if self.player.health <= 0:
                                 running = False
                 for power_up in self.power_ups[:]:
@@ -386,6 +426,7 @@ class Game:
                     if dist < (power_up.size + self.player.size) / 2:
                         power_up.apply(self.player)
                         self.power_ups.remove(power_up)
+                        powerup_sound.play()
                         self.add_particle(power_up.x, power_up.y, power_up.color, 3)
                         self.show_message(f"{power_up.type.capitalize()} power-up collected!")
                 if len(self.enemies) == 0:
@@ -400,6 +441,17 @@ class Game:
             for enemy in self.enemies:
                 enemy.draw(screen)
             self.player.draw(screen)
+            for enemy in self.enemies:
+                if enemy.x < 0 or enemy.x > WINDOW_WIDTH or enemy.y < 0 or enemy.y > WINDOW_HEIGHT:
+                    dx = enemy.x - self.player.x
+                    dy = enemy.y - self.player.y
+                    angle = math.atan2(dy, dx)
+                    arrow_x = self.player.x + math.cos(angle) * 100
+                    arrow_y = self.player.y + math.sin(angle) * 100
+                    arrow_x = max(20, min(WINDOW_WIDTH - 20, arrow_x))
+                    arrow_y = max(20, min(WINDOW_HEIGHT - 20, arrow_y))
+                    pygame.draw.line(screen, RED, (arrow_x, arrow_y), 
+                                    (arrow_x + math.cos(angle) * 20, arrow_y + math.sin(angle) * 20), 5)
             pygame.draw.rect(screen, BLACK, (0, 0, WINDOW_WIDTH, 60))
             health_text = font_medium.render(f"Health: {int(self.player.health)}/{self.player.max_health}", True, WHITE)
             shield_text = font_medium.render(f"Shield: {int(self.player.shield)}/{self.player.max_shield}", True, CYAN)
@@ -431,6 +483,12 @@ class Game:
                 message_surface = font_large.render(self.message, True, WHITE)
                 message_rect = message_surface.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT - 50))
                 screen.blit(message_surface, message_rect)
+
+            if self.player_hit_timer > 0:
+                flash_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+                flash_surface.fill((255, 0, 0, 128))
+                screen.blit(flash_surface, (0, 0))
+                self.player_hit_timer -= 1
 
             pygame.display.flip()
             clock.tick(FPS)
