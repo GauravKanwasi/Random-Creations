@@ -1,72 +1,116 @@
-/* Base Styles */
-body {
-    margin: 0;
-    background: #1a1a1a;
-    color: #fff;
-    font-family: Arial, sans-serif;
-    transition: background 0.3s;
+/* Reset & Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  cursor: default;
 }
 
-.container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
+body, html {
+  height: 100%;
+  font-family: 'Segoe UI', sans-serif;
+  overflow: hidden;
 }
 
-/* Dark/Light Theme Toggle */
-body.light-mode {
-    background: #f0f0f0;
-    color: #333;
+/* Canvas Background */
+#backgroundCanvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: var(--bg-color);
 }
 
-/* Wheel Design */
-.wheel-container {
-    text-align: center;
-    margin: 40px 0;
+/* App Container */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  text-align: center;
+  transition: background 0.5s ease;
 }
 
-.wheel {
-    width: 200px;
-    height: 200px;
-    border-radius: 50%;
-    margin: 0 auto 20px;
-    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    transition: transform 2s ease-out;
-    box-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+/* Header */
+.header h1 {
+  font-size: 3rem;
+  margin-bottom: 2rem;
+  color: var(--accent-color);
+  cursor: pointer;
+  animation: pulse 3s infinite;
 }
 
-.spin-btn {
-    padding: 12px 30px;
-    background: #4ecdc4;
-    border: none;
-    border-radius: 25px;
-    color: white;
-    cursor: pointer;
-    font-size: 1.1em;
-    transition: transform 0.2s;
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
-.spin-btn:hover {
-    transform: scale(1.05);
+/* Counter Section */
+.counter-display {
+  font-size: 5rem;
+  color: var(--text-color);
+  transition: transform 0.2s ease;
+  min-height: 3rem;
 }
 
-/* Content Card */
-.content-card {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
-    padding: 20px;
-    margin: 20px;
-    min-height: 100px;
-    backdrop-filter: blur(10px);
-    animation: fadeIn 0.5s;
+.counter-display.animate {
+  animation: bounce 0.3s ease;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes bounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
 }
 
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(1440deg); }
+.counter-controls {
+  margin: 2rem 0;
+}
+
+button {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  margin: 0.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Tooltip */
+button[data-tooltip] {
+  position: relative;
+}
+
+button[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+button:hover[data-tooltip]::after {
+  opacity: 1;
 }
