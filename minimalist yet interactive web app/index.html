@@ -1,31 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RandomHub</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Interactive Minimalist App</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <h1>RandomHub</h1>
-            <button id="themeToggle">🌓</button>
-        </header>
+  <canvas id="backgroundCanvas"></canvas>
 
-        <!-- Main Interaction -->
-        <div class="wheel-container">
-            <div class="wheel" id="wheel"></div>
-            <button class="spin-btn" onclick="spinWheel()">SPIN</button>
-        </div>
-
-        <!-- Dynamic Content Display -->
-        <div class="content-card" id="contentCard">
-            <p id="contentText">Click SPIN to see something random!</p>
-        </div>
+  <div class="app-container">
+    <div class="header">
+      <h1 data-tooltip="Click to animate!">✨ Minimalist Interactivity</h1>
     </div>
 
-    <script src="script.js"></script>
+    <div class="counter-section">
+      <div class="counter-display" id="counterDisplay">0</div>
+      <div class="counter-controls">
+        <button id="incrementBtn" data-tooltip="Press spacebar">+1</button>
+        <button id="resetBtn" data-tooltip="Reset to 0">🔄</button>
+      </div>
+    </div>
+
+    <div class="theme-controls">
+      <button id="themeToggle" data-tooltip="Cycle themes">🎨 Theme</button>
+      <button id="particleToggle" data-tooltip="Toggle background">🌀 Particles</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
