@@ -1,6 +1,8 @@
 import pygame
 import random
 import sys
+import math
+from enum import Enum
 
 # Initialize Pygame
 pygame.init()
@@ -12,7 +14,7 @@ PADDLE_WIDTH = 15
 PADDLE_HEIGHT = 90
 BALL_SIZE = 15
 FPS = 60
-TARGET_SCORE = 5  # Score needed to win the game
+TARGET_SCORE = 5
 
 # Colors
 WHITE = (255, 255, 255)
@@ -22,20 +24,25 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 GRAY = (100, 100, 100)
 YELLOW = (255, 255, 0)
+DARK_BLUE = (0, 0, 50)
+LIGHT_BLUE = (100, 100, 255)
 
-# Initialize screen
-screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-pygame.display.set_caption("Table Tennis Pro")
+# Game states
+class GameState(Enum):
+    START = 0
+    PLAYING = 1
+    PAUSED = 2
+    GAME_OVER = 3
 
-# Paddle class for player and opponent
+# Paddle class
 class Paddle:
     def __init__(self, x, color):
         self.x = x
         self.y = WINDOW_HEIGHT // 2 - PADDLE_HEIGHT // 2
         self.color = color
-        self.speed = 7  # Default speed, adjusted for opponent in Game
+        self.speed = 7
         self.score = 0
-        self.hit_timer = 0  # Timer for flash effect
+        self.hit_timer = 0
         
     def move(self, up=True):
         if up and self.y > 0:
@@ -44,311 +51,353 @@ class Paddle:
             self.y += self.speed
             
     def draw(self):
-        # Flash yellow when hit, then revert to original color
+        color = YELLOW if self.hit_timer > 0 else self.color
         if self.hit_timer > 0:
-            color = YELLOW
             self.hit_timer -= 1
-        else:
-            color = self.color
-        pygame.draw.rect(screen, color, (self.x, self.y, PADDLE_WIDTH, PADDLE_HEIGHT), border_radius=5)
+            
+        pygame.draw.rect(screen, color, (self.x, self.y, PADDLE_WIDTH, PADDLE_HEIGHT), 
+                         border_radius=5, border_width=2)
         
     def get_rect(self):
         return pygame.Rect(self.x, self.y, PADDLE_WIDTH, PADDLE_HEIGHT)
 
-# Ball class with enhanced trail effect
+# Ball class with improved physics
 class Ball:
     def __init__(self):
         self.reset()
-        self.trail = []  # For ball trail effect
+        self.trail = []
         
     def reset(self):
         self.x = WINDOW_WIDTH // 2
         self.y = WINDOW_HEIGHT // 2
-        self.speed_x = random.choice([-4, 4])
-        self.speed_y = random.uniform(-4, 4)
+        angle = random.uniform(math.pi/6, math.pi/3)
+        direction = random.choice([-1, 1])
+        self.speed_x = 5 * direction
+        self.speed_y = 5 * math.sin(angle)
         self.trail = []
         
     def move(self):
         self.x += self.speed_x
         self.y += self.speed_y
+        
+        # Add current position to trail
         self.trail.append((self.x, self.y))
         if len(self.trail) > 10:
             self.trail.pop(0)
         
         # Bounce off top and bottom
-        if self.y <= 0 or self.y >= WINDOW_HEIGHT - BALL_SIZE:
+        if self.y <= BALL_SIZE//2 or self.y >= WINDOW_HEIGHT - BALL_SIZE//2:
             self.speed_y = -self.speed_y
-            # Uncomment to play wall sound (requires sound file)
-            # game.wall_sound.play()
             
     def draw(self):
-        # Draw trail with fading shades of gray
+        # Draw trail
         for i, pos in enumerate(self.trail):
-            shade = 255 - int(200 * i / len(self.trail))
-            color = (shade, shade, shade)
-            size = BALL_SIZE // 2 - i // 3
-            if size > 0:
-                pygame.draw.circle(screen, color, (int(pos[0]), int(pos[1])), size)
+            alpha = 255 * (i / len(self.trail))
+            size = max(1, BALL_SIZE - i)
+            pygame.draw.circle(screen, (200, 200, 255, int(alpha)), 
+                             (int(pos[0]), int(pos[1])), size//2)
+        
         # Draw ball
-        pygame.draw.circle(screen, WHITE, (int(self.x), int(self.y)), BALL_SIZE // 2)
+        pygame.draw.circle(screen, WHITE, (int(self.x), int(self.y)), BALL_SIZE//2)
+        pygame.draw.circle(screen, LIGHT_BLUE, (int(self.x), int(self.y)), 
+                         BALL_SIZE//2 - 2, 1)
         
     def get_rect(self):
-        return pygame.Rect(self.x - BALL_SIZE // 2, self.y - BALL_SIZE // 2, BALL_SIZE, BALL_SIZE)
+        return pygame.Rect(self.x - BALL_SIZE//2, self.y - BALL_SIZE//2, 
+                         BALL_SIZE, BALL_SIZE)
 
-# Particle class with fading effect
-class Particle:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.vx = random.uniform(-2, 2)
-        self.vy = random.uniform(-2, 2)
-        self.size = random.randint(2, 5)
-        self.lifetime = random.randint(10, 20)
+# Particle system with physics-based effects
+class ParticleSystem:
+    def __init__(self):
+        self.particles = []
         
+    def add_particles(self, x, y, count=8):
+        for _ in range(count):
+            angle = random.uniform(0, math.pi * 2)
+            speed = random.uniform(1, 3)
+            self.particles.append({
+                'x': x,
+                'y': y,
+                'vx': math.cos(angle) * speed,
+                'vy': math.sin(angle) * speed,
+                'size': random.randint(2, 5),
+                'lifetime': random.randint(15, 30),
+                'color': (random.randint(200, 255), random.randint(200, 255), 255)
+            })
+    
     def update(self):
-        self.x += self.vx
-        self.y += self.vy
-        self.lifetime -= 1
-        
+        for p in self.particles[:]:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['vy'] += 0.1  # Gravity
+            p['lifetime'] -= 1
+            
+            if p['lifetime'] <= 0:
+                self.particles.remove(p)
+    
     def draw(self):
-        if self.lifetime > 0:
-            shade = int(255 * self.lifetime / 20)  # Fade based on lifetime
-            color = (shade, shade, shade)
-            pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
+        for p in self.particles:
+            alpha = min(255, p['lifetime'] * 8)
+            pygame.draw.circle(screen, p['color'], 
+                             (int(p['x']), int(p['y'])), 
+                             p['size'])
 
-# Game class managing the overall game
+# Game class with improved structure
 class Game:
     def __init__(self):
         self.player = Paddle(50, GREEN)
         self.opponent = Paddle(WINDOW_WIDTH - 50 - PADDLE_WIDTH, RED)
         self.ball = Ball()
-        self.particles = []
-        self.title_font = pygame.font.Font(None, 100)
-        self.font = pygame.font.Font(None, 74)
-        self.small_font = pygame.font.Font(None, 36)
-        self.state = "start"
-        self.difficulty = 1  # 1: Easy, 2: Medium, 3: Hard
-        self.opponent_reaction = {1: 0.1, 2: 0.2, 3: 0.3}
-        self.paused = False
-        self.flash_timer = 0
-        self.fade_alpha = 0
-        self.winner = None
+        self.particles = ParticleSystem()
+        self.font_large = pygame.font.SysFont('Arial', 80, bold=True)
+        self.font_medium = pygame.font.SysFont('Arial', 50)
+        self.font_small = pygame.font.SysFont('Arial', 30)
+        self.state = GameState.START
+        self.difficulty = 2  # 1: Easy, 2: Medium, 3: Hard
+        self.opponent_reaction = {1: 0.2, 2: 0.3, 3: 0.4}
         self.target_score = TARGET_SCORE
+        self.winner = None
+        self.flash_timer = 0
         
-        # Gradient background for start screen
-        self.gradient = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-        for y in range(WINDOW_HEIGHT):
-            color = (0 + int(100 * y / WINDOW_HEIGHT), 0 + int(100 * y / WINDOW_HEIGHT), 50 + int(205 * y / WINDOW_HEIGHT))
-            pygame.draw.line(self.gradient, color, (0, y), (WINDOW_WIDTH, y))
+        # Create background surface
+        self.background = self.create_background()
         
-        # Load sound effects (uncomment with sound files available)
-        # self.hit_sound = pygame.mixer.Sound('hit.wav')
-        # self.wall_sound = pygame.mixer.Sound('wall.wav')
-        # self.score_sound = pygame.mixer.Sound('score.wav')
+    def create_background(self):
+        bg = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        bg.fill(DARK_BLUE)
+        
+        # Draw court lines
+        pygame.draw.line(bg, GRAY, (WINDOW_WIDTH//2, 0), (WINDOW_WIDTH//2, WINDOW_HEIGHT), 2)
+        
+        # Draw dashed center line
+        for y in range(0, WINDOW_HEIGHT, 20):
+            pygame.draw.line(bg, GRAY, (WINDOW_WIDTH//2, y), (WINDOW_WIDTH//2, y + 10), 2)
+            
+        # Draw court outline
+        pygame.draw.rect(bg, BLUE, (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), 4, border_radius=10)
+        
+        return bg
         
     def draw_start_screen(self):
-        screen.blit(self.gradient, (0, 0))
+        # Draw gradient background
+        for y in range(WINDOW_HEIGHT):
+            color = (0, 0, 50 + int(205 * y / WINDOW_HEIGHT))
+            pygame.draw.line(screen, color, (0, y), (WINDOW_WIDTH, y))
         
-        # Title with shadow
-        title_shadow = self.title_font.render("Table Tennis Pro", True, GRAY)
-        screen.blit(title_shadow, (WINDOW_WIDTH//2 - title_shadow.get_width()//2 + 2, WINDOW_HEIGHT//3 + 2))
-        title = self.title_font.render("Table Tennis Pro", True, WHITE)
-        screen.blit(title, (WINDOW_WIDTH//2 - title.get_width()//2, WINDOW_HEIGHT//3))
+        # Title
+        title = self.font_large.render("PONG PRO", True, WHITE)
+        title_shadow = self.font_large.render("PONG PRO", True, GRAY)
+        screen.blit(title_shadow, (WINDOW_WIDTH//2 - title.get_width()//2 + 3, 150 + 3))
+        screen.blit(title, (WINDOW_WIDTH//2 - title.get_width()//2, 150))
+        
+        # Difficulty indicator
+        diff_colors = [GREEN, YELLOW, RED]
+        pygame.draw.rect(screen, diff_colors[self.difficulty-1], 
+                       (WINDOW_WIDTH//2 - 100, 300, 200, 50), border_radius=10)
+        diff_text = self.font_small.render(
+            f"{['EASY', 'MEDIUM', 'HARD'][self.difficulty-1]}", True, BLACK)
+        screen.blit(diff_text, (WINDOW_WIDTH//2 - diff_text.get_width()//2, 310))
         
         # Instructions
-        start_text = self.small_font.render("Press SPACE to start", True, WHITE)
-        screen.blit(start_text, (WINDOW_WIDTH//2 - start_text.get_width()//2, WINDOW_HEIGHT//2))
-        diff_text = self.small_font.render(f"Difficulty: {['Easy', 'Medium', 'Hard'][self.difficulty-1]} (1-3 to change)", True, WHITE)
-        screen.blit(diff_text, (WINDOW_WIDTH//2 - diff_text.get_width()//2, 2*WINDOW_HEIGHT//3))
+        start_text = self.font_small.render("PRESS SPACE TO START", True, WHITE)
+        screen.blit(start_text, (WINDOW_WIDTH//2 - start_text.get_width()//2, 400))
+        
+        control_text = self.font_small.render("CONTROLS: W/S KEYS TO MOVE, P TO PAUSE", True, WHITE)
+        screen.blit(control_text, (WINDOW_WIDTH//2 - control_text.get_width()//2, 450))
+        
+        diff_select = self.font_small.render("PRESS 1-3 TO CHANGE DIFFICULTY", True, WHITE)
+        screen.blit(diff_select, (WINDOW_WIDTH//2 - diff_select.get_width()//2, 500))
         
     def draw_pause_screen(self):
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-        overlay.fill(BLACK)
-        overlay.set_alpha(128)
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
         screen.blit(overlay, (0, 0))
         
-        pause_text = self.title_font.render("Paused", True, WHITE)
-        screen.blit(pause_text, (WINDOW_WIDTH//2 - pause_text.get_width()//2, WINDOW_HEIGHT//2))
-        resume_text = self.small_font.render("Press P to resume or Q to quit", True, WHITE)
-        screen.blit(resume_text, (WINDOW_WIDTH//2 - resume_text.get_width()//2, 2*WINDOW_HEIGHT//3))
+        pause_text = self.font_large.render("GAME PAUSED", True, YELLOW)
+        screen.blit(pause_text, (WINDOW_WIDTH//2 - pause_text.get_width()//2, 200))
+        
+        resume_text = self.font_medium.render("Press P to Resume", True, WHITE)
+        screen.blit(resume_text, (WINDOW_WIDTH//2 - resume_text.get_width()//2, 300))
+        
+        quit_text = self.font_medium.render("Press Q to Quit", True, WHITE)
+        screen.blit(quit_text, (WINDOW_WIDTH//2 - quit_text.get_width()//2, 370))
         
     def draw_game_over_screen(self):
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-        overlay.fill(BLACK)
-        overlay.set_alpha(128)
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
         screen.blit(overlay, (0, 0))
         
-        color = (self.fade_alpha, self.fade_alpha, self.fade_alpha)
-        winner_text = self.title_font.render(f"{self.winner} Wins!", True, color)
-        screen.blit(winner_text, (WINDOW_WIDTH//2 - winner_text.get_width()//2, WINDOW_HEIGHT//3))
-        score_text = self.font.render(f"Final Score: {self.player.score} - {self.opponent.score}", True, color)
-        screen.blit(score_text, (WINDOW_WIDTH//2 - score_text.get_width()//2, WINDOW_HEIGHT//2))
-        options_text = self.small_font.render("Press R to restart or Q to quit", True, color)
-        screen.blit(options_text, (WINDOW_WIDTH//2 - options_text.get_width()//2, 2*WINDOW_HEIGHT//3))
+        winner_color = GREEN if self.winner == "PLAYER" else RED
+        winner_text = self.font_large.render(f"{self.winner} WINS!", True, winner_color)
+        screen.blit(winner_text, (WINDOW_WIDTH//2 - winner_text.get_width()//2, 150))
+        
+        score_text = self.font_medium.render(
+            f"Final Score: {self.player.score} - {self.opponent.score}", True, WHITE)
+        screen.blit(score_text, (WINDOW_WIDTH//2 - score_text.get_width()//2, 250))
+        
+        restart_text = self.font_medium.render("Press R to Restart", True, GREEN)
+        screen.blit(restart_text, (WINDOW_WIDTH//2 - restart_text.get_width()//2, 320))
+        
+        quit_text = self.font_medium.render("Press Q to Quit", True, RED)
+        screen.blit(quit_text, (WINDOW_WIDTH//2 - quit_text.get_width()//2, 380))
         
     def enhanced_ai(self):
         reaction = self.opponent_reaction[self.difficulty]
-        # Add prediction error based on difficulty
-        error = random.uniform(-50, 50) * (1 - (self.difficulty - 1) / 2)
-        predicted_y = self.ball.y + self.ball.speed_y * 10 + error
-        if random.random() < reaction:
-            if self.opponent.y + PADDLE_HEIGHT/2 < predicted_y:
-                self.opponent.move(up=False)
-            elif self.opponent.y + PADDLE_HEIGHT/2 > predicted_y:
-                self.opponent.move(up=True)
+        error = random.uniform(-40, 40) * (4 - self.difficulty)
+        target_y = self.ball.y + error
+        
+        # Move toward predicted ball position
+        if self.opponent.y + PADDLE_HEIGHT/2 < target_y - 20:
+            self.opponent.move(up=False)
+        elif self.opponent.y + PADDLE_HEIGHT/2 > target_y + 20:
+            self.opponent.move(up=True)
                 
     def check_collision(self):
-        if self.ball.get_rect().colliderect(self.player.get_rect()):
-            self.ball.speed_x = abs(self.ball.speed_x) * 1.1
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_w]:
-                self.ball.speed_y -= 0.5
-            elif keys[pygame.K_s]:
-                self.ball.speed_y += 0.5
-            self.player.hit_timer = 10  # Trigger flash
-            for _ in range(5):
-                self.particles.append(Particle(self.ball.x, self.ball.y))
-            # Uncomment to play hit sound (requires sound file)
-            # self.hit_sound.play()
+        ball_rect = self.ball.get_rect()
+        
+        # Player collision
+        if ball_rect.colliderect(self.player.get_rect()):
+            # Calculate hit position effect
+            relative_y = (self.player.y + PADDLE_HEIGHT/2 - self.ball.y) / (PADDLE_HEIGHT/2)
+            self.ball.speed_x = abs(self.ball.speed_x) * 1.05
+            self.ball.speed_y = -relative_y * 8
+            
+            self.player.hit_timer = 10
+            self.particles.add_particles(self.ball.x, self.ball.y)
                 
-        if self.ball.get_rect().colliderect(self.opponent.get_rect()):
-            self.ball.speed_x = -abs(self.ball.speed_x) * 1.1
-            self.ball.speed_y += random.uniform(-0.5, 0.5)
-            self.opponent.hit_timer = 10  # Trigger flash
-            for _ in range(5):
-                self.particles.append(Particle(self.ball.x, self.ball.y))
-            # Uncomment to play hit sound (requires sound file)
-            # self.hit_sound.play()
+        # Opponent collision
+        if ball_rect.colliderect(self.opponent.get_rect()):
+            relative_y = (self.opponent.y + PADDLE_HEIGHT/2 - self.ball.y) / (PADDLE_HEIGHT/2)
+            self.ball.speed_x = -abs(self.ball.speed_x) * 1.05
+            self.ball.speed_y = -relative_y * 8
+            
+            self.opponent.hit_timer = 10
+            self.particles.add_particles(self.ball.x, self.ball.y)
                 
         # Cap ball speed
-        self.ball.speed_x = max(min(self.ball.speed_x, 10), -10)
-        self.ball.speed_y = max(min(self.ball.speed_y, 10), -10)
+        max_speed = 12
+        self.ball.speed_x = max(min(self.ball.speed_x, max_speed), -max_speed)
+        self.ball.speed_y = max(min(self.ball.speed_y, max_speed), -max_speed)
         
     def reset_game(self):
         self.player.score = 0
         self.opponent.score = 0
         self.ball.reset()
-        self.particles = []
-        self.state = "playing"
-        self.fade_alpha = 0
+        self.particles = ParticleSystem()
+        self.state = GameState.PLAYING
         self.winner = None
+        self.flash_timer = 0
+        # Set opponent speed based on difficulty
+        self.opponent.speed = {1: 5, 2: 7, 3: 9}[self.difficulty]
         
     def run(self):
         clock = pygame.time.Clock()
-        running = True
+        screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+        pygame.display.set_caption("Pong Pro")
         
+        running = True
         while running:
+            # Event handling
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+                
                 elif event.type == pygame.KEYDOWN:
-                    if self.state == "start":
+                    if self.state == GameState.START:
                         if event.key == pygame.K_SPACE:
-                            self.state = "playing"
-                            # Set opponent speed based on difficulty
-                            self.opponent.speed = {1: 5, 2: 7, 3: 9}[self.difficulty]
+                            self.state = GameState.PLAYING
                         elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                             self.difficulty = int(event.unicode)
-                    elif self.state == "playing":
+                            
+                    elif self.state == GameState.PLAYING:
                         if event.key == pygame.K_p:
-                            self.paused = not self.paused
-                    elif self.state == "game_over":
+                            self.state = GameState.PAUSED
+                            
+                    elif self.state == GameState.PAUSED:
+                        if event.key == pygame.K_p:
+                            self.state = GameState.PLAYING
+                        elif event.key == pygame.K_q:
+                            running = False
+                            
+                    elif self.state == GameState.GAME_OVER:
                         if event.key == pygame.K_r:
                             self.reset_game()
                         elif event.key == pygame.K_q:
                             running = False
-                    if self.paused and event.key == pygame.K_q:
-                        running = False
-                            
-            if self.state == "start":
+            
+            # Game state processing
+            if self.state == GameState.START:
                 self.draw_start_screen()
                 
-            elif self.state == "playing":
-                if self.paused:
-                    self.draw_pause_screen()
-                else:
-                    # Input handling
-                    keys = pygame.key.get_pressed()
-                    if keys[pygame.K_w]:
-                        self.player.move(up=True)
-                    if keys[pygame.K_s]:
-                        self.player.move(up=False)
+            elif self.state == GameState.PLAYING:
+                # Player controls
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_w]:
+                    self.player.move(up=True)
+                if keys[pygame.K_s]:
+                    self.player.move(up=False)
+                    
+                # AI movement
+                self.enhanced_ai()
+                
+                # Ball movement
+                self.ball.move()
+                self.check_collision()
+                
+                # Update particles
+                self.particles.update()
+                
+                # Scoring
+                if self.ball.x <= 0:
+                    self.opponent.score += 1
+                    self.flash_timer = 10
+                    if self.opponent.score >= self.target_score:
+                        self.winner = "OPPONENT"
+                        self.state = GameState.GAME_OVER
+                    else:
+                        self.ball.reset()
                         
-                    # Update game
-                    self.enhanced_ai()
-                    self.ball.move()
-                    self.check_collision()
+                elif self.ball.x >= WINDOW_WIDTH:
+                    self.player.score += 1
+                    self.flash_timer = 10
+                    if self.player.score >= self.target_score:
+                        self.winner = "PLAYER"
+                        self.state = GameState.GAME_OVER
+                    else:
+                        self.ball.reset()
+                
+                # Drawing
+                screen.blit(self.background, (0, 0))
+                
+                # Draw scores
+                player_score = self.font_large.render(str(self.player.score), True, GREEN)
+                screen.blit(player_score, (WINDOW_WIDTH//4 - player_score.get_width()//2, 20))
+                
+                opponent_score = self.font_large.render(str(self.opponent.score), True, RED)
+                screen.blit(opponent_score, (3*WINDOW_WIDTH//4 - opponent_score.get_width()//2, 20))
+                
+                # Draw game objects
+                self.player.draw()
+                self.opponent.draw()
+                self.ball.draw()
+                self.particles.draw()
+                
+                # Flash effect on score
+                if self.flash_timer > 0:
+                    flash = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+                    flash.fill((255, 255, 255, min(150, self.flash_timer * 25)))
+                    screen.blit(flash, (0, 0))
+                    self.flash_timer -= 1
                     
-                    # Update particles
-                    for particle in self.particles[:]:
-                        particle.update()
-                        if particle.lifetime <= 0:
-                            self.particles.remove(particle)
-                    
-                    # Score points
-                    if self.ball.x <= 0:
-                        self.opponent.score += 1
-                        self.flash_timer = 6
-                        # Uncomment to play score sound (requires sound file)
-                        # self.score_sound.play()
-                        if self.opponent.score >= self.target_score:
-                            self.winner = "Opponent"
-                            self.state = "game_over"
-                        else:
-                            self.ball.reset()
-                    elif self.ball.x >= WINDOW_WIDTH - BALL_SIZE:
-                        self.player.score += 1
-                        self.flash_timer = 6
-                        # Uncomment to play score sound (requires sound file)
-                        # self.score_sound.play()
-                        if self.player.score >= self.target_score:
-                            self.winner = "Player"
-                            self.state = "game_over"
-                        else:
-                            self.ball.reset()
-                            
-                    # Draw everything
-                    screen.fill(BLACK)
-                    
-                    # Draw court details
-                    pygame.draw.aaline(screen, WHITE, (WINDOW_WIDTH//2, 0), (WINDOW_WIDTH//2, WINDOW_HEIGHT))
-                    pygame.draw.rect(screen, BLUE, (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), 5)
-                    
-                    # Draw net
-                    for y in range(0, WINDOW_HEIGHT, 20):
-                        pygame.draw.line(screen, WHITE, (WINDOW_WIDTH//2 - 2, y), (WINDOW_WIDTH//2 - 2, y + 10), 4)
-                    
-                    # Draw scores with labels
-                    player_label = self.small_font.render("Player", True, GREEN)
-                    screen.blit(player_label, (WINDOW_WIDTH//4 - player_label.get_width()//2, 20))
-                    player_score = self.font.render(str(self.player.score), True, GREEN)
-                    screen.blit(player_score, (WINDOW_WIDTH//4 - player_score.get_width()//2, 60))
-                    opponent_label = self.small_font.render("Opponent", True, RED)
-                    screen.blit(opponent_label, (3*WINDOW_WIDTH//4 - opponent_label.get_width()//2, 20))
-                    opponent_score = self.font.render(str(self.opponent.score), True, RED)
-                    screen.blit(opponent_score, (3*WINDOW_WIDTH//4 - opponent_score.get_width()//2, 60))
-                    
-                    # Draw game objects
-                    self.player.draw()
-                    self.opponent.draw()
-                    self.ball.draw()
-                    for particle in self.particles:
-                        particle.draw()
-                    
-                    # Screen flash on score
-                    if self.flash_timer > 0:
-                        flash_overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-                        flash_overlay.fill(WHITE)
-                        flash_overlay.set_alpha(100)
-                        screen.blit(flash_overlay, (0, 0))
-                        self.flash_timer -= 1
-                        
-            elif self.state == "game_over":
-                if self.fade_alpha < 255:
-                    self.fade_alpha += 5
-                    if self.fade_alpha > 255:
-                        self.fade_alpha = 255
+            elif self.state == GameState.PAUSED:
+                self.draw_pause_screen()
+                
+            elif self.state == GameState.GAME_OVER:
                 self.draw_game_over_screen()
+            
+            # Draw FPS counter
+            fps_text = self.font_small.render(f"FPS: {int(clock.get_fps())}", True, GRAY)
+            screen.blit(fps_text, (10, 10))
             
             pygame.display.flip()
             clock.tick(FPS)
